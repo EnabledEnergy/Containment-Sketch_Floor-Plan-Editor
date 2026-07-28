@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CT – Hartford Locust · Floor Plan Editor · Enabled Energy</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#f0f0f0;color:#2C2C2A;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+#header{background:#1F4E79;color:#fff;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+#header h1{font-size:14px;font-weight:600}
+#header span{font-size:11px;opacity:0.7}
+#toolbar{display:flex;gap:5px;padding:6px 10px;background:#fff;border-bottom:1px solid #ddd;flex-wrap:wrap;align-items:center;flex-shrink:0}
+#toolbar button{font-size:11px;padding:4px 10px;border:1px solid #ccc;border-radius:5px;background:#fff;color:#2C2C2A;cursor:pointer}
+#toolbar button:hover{background:#f0f0f0}
+#toolbar button.active{background:#E6F1FB;color:#0C447C;border-color:#185FA5;font-weight:600}
+.sep{width:1px;height:20px;background:#ddd;margin:0 2px}
+.tl{font-size:10px;color:#999;margin-right:1px}
+#main{display:flex;flex:1;overflow:hidden}
+#canvas-wrap{flex:1;overflow:auto;background:#ddd;position:relative}
+canvas{display:block;cursor:default;background:#fff;margin:12px auto;box-shadow:0 2px 12px rgba(0,0,0,0.18)}
+#props{width:210px;background:#fff;border-left:1px solid #ddd;overflow-y:auto;flex-shrink:0;display:flex;flex-direction:column}
+#props-empty{padding:16px;color:#aaa;font-size:12px;text-align:center;margin-top:40px}
+#props-panel{display:none;padding:0 0 16px}
+.ps{font-size:10px;font-weight:600;color:#888;letter-spacing:0.05em;text-transform:uppercase;padding:10px 12px 4px;border-bottom:1px solid #f0f0f0}
+.pr{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;gap:6px}
+.pr label{font-size:11px;color:#555;white-space:nowrap;min-width:60px}
+.pr input[type=text],.pr input[type=number],.pr select{font-size:11px;border:1px solid #ddd;border-radius:4px;padding:3px 5px;width:100%;background:#fff;color:#2C2C2A}
+.pr input[type=color]{width:32px;height:24px;padding:1px;border:1px solid #ddd;border-radius:3px;cursor:pointer}
+.pr input[type=checkbox]{width:16px;height:16px;cursor:pointer}
+.orient-group{display:flex;gap:4px;padding:0 12px 6px}
+.orient-btn{flex:1;font-size:10px;padding:4px 2px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;text-align:center;color:#555}
+.orient-btn.active{background:#E6F1FB;border-color:#185FA5;color:#0C447C;font-weight:600}
+#status{font-size:11px;color:#666;padding:3px 10px;background:#f9f9f9;border-top:1px solid #eee;flex-shrink:0}
+#label-input{position:absolute;display:none;font-size:12px;padding:4px 8px;border:2px solid #185FA5;border-radius:4px;background:#fff;color:#2C2C2A;outline:none;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,0.15)}
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>CT – Hartford Locust &nbsp;·&nbsp; Containment Floor Plan Editor</h1>
+  <span>Enabled Energy &nbsp;·&nbsp; Select element to edit properties &nbsp;·&nbsp; Ctrl+Z undo</span>
+</div>
+
+<div id="toolbar">
+  <div class="tl">Tools:</div>
+  <button id="btn-select" class="active">▶ Select</button>
+  <div class="sep"></div>
+  <div class="tl">Add:</div>
+  <button id="btn-rack" style="background:#E1F5EE;border-color:#0F6E56;color:#085041">+ Rack</button>
+  <button id="btn-crac" style="background:#FAEEDA;border-color:#854F0B;color:#633806">+ CRAC</button>
+  <button id="btn-cold" style="background:#E6F1FB;border-color:#185FA5;color:#0C447C">+ Cold aisle</button>
+  <button id="btn-hot" style="background:#FAEEDA;border-color:#D85A30;color:#993C1D">+ Hot aisle</button>
+  <button id="btn-curtain" style="background:#f5f5f5;border-color:#888;color:#444">+ Curtain</button>
+  <button id="btn-wall">+ Wall</button>
+  <button id="btn-room">+ Room</button>
+  <button id="btn-label">+ Label</button>
+  <div class="sep"></div>
+  <div class="tl">Edit:</div>
+  <button id="btn-rename">Rename</button>
+  <button id="btn-delete" style="color:#A32D2D;border-color:#f0c0c0">✕ Delete</button>
+  <div class="sep"></div>
+  <button id="btn-undo">← Undo</button>
+  <button id="btn-reset" style="color:#888">Reset</button>
+  <div class="sep"></div>
+  <button id="btn-copy" style="background:#E1F5EE;border-color:#0F6E56;color:#085041">⎘ Copy</button>
+  <button id="btn-export" style="background:#1F4E79;color:#fff;border-color:#1F4E79;font-weight:600">↓ Export PNG</button>
+  <div class="sep"></div>
+  <div class="tl">Project:</div>
+  <button id="btn-save" style="background:#F0F7FF;border-color:#2E75B6;color:#1F4E79;font-weight:600">💾 Save project</button>
+  <button id="btn-load" style="background:#F0F7FF;border-color:#2E75B6;color:#1F4E79">📂 Load project</button>
+  <input type="file" id="file-load" accept=".json" style="display:none"/>
+</div>
+
+<div id="main">
+  <div id="canvas-wrap" style="position:relative">
+    <canvas id="c" width="920" height="980"></canvas>
+    <input id="label-input" type="text" maxlength="40" placeholder="Label…"/>
+  </div>
+
+  <div id="props">
+    <div id="props-empty">Select an element to edit its properties</div>
+    <div id="props-panel">
+      <div class="ps">Label</div>
+      <div class="pr"><label>Text</label><input type="text" id="p-label" maxlength="40"/></div>
+      <div class="pr"><label>Font size</label><input type="number" id="p-fontsize" min="8" max="36" value="12" style="width:60px"/><span style="font-size:11px;color:#888">px</span></div>
+      <div class="pr"><label>Bold</label><input type="checkbox" id="p-bold"/></div>
+      <div class="ps">Text orientation</div>
+      <div class="orient-group">
+        <button class="orient-btn active" data-rot="0">0°</button>
+        <button class="orient-btn" data-rot="90">90°</button>
+        <button class="orient-btn" data-rot="270">270°</button>
+        <button class="orient-btn" data-rot="180">180°</button>
+      </div>
+      <div class="pr"><label>Custom °</label><input type="number" id="p-rot" min="-360" max="360" value="0" style="width:60px"/></div>
+      <div class="ps">Text alignment</div>
+      <div class="orient-group">
+        <button class="orient-btn active" data-align="center">Center</button>
+        <button class="orient-btn" data-align="left">Left</button>
+        <button class="orient-btn" data-align="right">Right</button>
+      </div>
+      <div class="ps">Text position</div>
+      <div class="orient-group">
+        <button class="orient-btn active" data-vpos="middle">Mid</button>
+        <button class="orient-btn" data-vpos="top">Top</button>
+        <button class="orient-btn" data-vpos="bottom">Bot</button>
+      </div>
+      <div class="ps">Colors</div>
+      <div class="pr"><label>Fill</label><input type="color" id="p-fill"/></div>
+      <div class="pr"><label>Border</label><input type="color" id="p-stroke"/></div>
+      <div class="pr"><label>Text color</label><input type="color" id="p-textcolor"/></div>
+      <div class="ps">Position &amp; size</div>
+      <div class="pr"><label>X</label><input type="number" id="p-x" style="width:70px"/><label style="min-width:10px">Y</label><input type="number" id="p-y" style="width:70px"/></div>
+      <div class="pr"><label>W</label><input type="number" id="p-w" style="width:70px"/><label style="min-width:10px">H</label><input type="number" id="p-h" style="width:70px"/></div>
+      <div class="ps">Border</div>
+      <div class="pr"><label>Width</label><input type="number" id="p-linewidth" min="0.5" max="8" step="0.5" value="1" style="width:60px"/><span style="font-size:11px;color:#888">px</span></div>
+      <div class="pr">
+        <label>Style</label>
+        <select id="p-dash">
+          <option value="solid">Solid</option>
+          <option value="dashed">Dashed</option>
+          <option value="dotted">Dotted</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="status">Click an element to select · Drag to move · Blue handles = resize · Double-click = rename · Del = delete · Ctrl+Z = undo</div>
+
+<script>
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+const status=document.getElementById('status');
+const labelInput=document.getElementById('label-input');
+const propsPanel=document.getElementById('props-panel');
+const propsEmpty=document.getElementById('props-empty');
+const W=canvas.width,H=canvas.height,GRID=10;
+
+const DEFAULTS={
+  rack:   {fill:'#E1F5EE',stroke:'#0F6E56',textColor:'#085041',lineWidth:0.8,dash:'solid'},
+  crac:   {fill:'#FAEEDA',stroke:'#854F0B',textColor:'#633806',lineWidth:0.8,dash:'solid'},
+  cold:   {fill:'#E6F1FB',stroke:'#185FA5',textColor:'#0C447C',lineWidth:0.8,dash:'dashed'},
+  hot:    {fill:'#FAEEDA',stroke:'#D85A30',textColor:'#993C1D',lineWidth:0.8,dash:'dashed'},
+  curtain:{fill:'#f5f4f0',stroke:'#888780',textColor:'#5F5E5A',lineWidth:0.5,dash:'solid'},
+  wall:   {fill:'#888780',stroke:'#444441',textColor:'#ffffff',lineWidth:1,dash:'solid'},
+  label:  {fill:'transparent',stroke:'transparent',textColor:'#2C2C2A',lineWidth:0,dash:'solid'},
+  room:   {fill:'rgba(241,239,232,0.45)',stroke:'#444441',textColor:'#2C2C2A',lineWidth:1.2,dash:'solid'},
+};
+
+let elements=[],history=[],selectedId=null,mode='select';
+let dragging=false,dragOffX=0,dragOffY=0;
+let resizing=false,resizeHandle=null;
+let drawingNew=null,drawStart=null,labelTarget=null,nextId=100;
+
+function snap(v){return Math.round(v/GRID)*GRID;}
+function saveHistory(){history.push(JSON.parse(JSON.stringify(elements)));if(history.length>60)history.shift();}
+function getById(id){return elements.find(e=>e.id===id);}
+
+function mkEl(type,x,y,w,h,label){
+  const d=DEFAULTS[type]||DEFAULTS.rack;
+  return{id:nextId++,type,x,y,w,h,label,
+    fill:d.fill,stroke:d.stroke,textColor:d.textColor,
+    fontSize:type==='room'?13:12,bold:type==='crac'||type==='room',
+    rotation:0,align:'center',vpos:'middle',
+    lineWidth:d.lineWidth,dash:d.dash};
+}
+
+function initFloorPlan(){
+  elements=[
+    mkEl('room',   20, 30, 570,315,'Colo room'),
+    mkEl('rack',   40, 80,  35, 225,'L1'),
+    mkEl('hot',    57, 80,  22, 225,'Hot aisle'),
+    mkEl('curtain',83, 80,  10, 225,''),
+    mkEl('rack',   97, 80,  50, 225,'L2'),
+    mkEl('cold',  151, 80,  60, 225,'Cold aisle L2/L3'),
+    mkEl('rack',  215, 80,  50, 225,'L3'),
+    mkEl('curtain',269,80,  10, 225,''),
+    mkEl('hot',   282, 80,  4,  225,''),
+    mkEl('rack',  290, 80,  44, 225,'L4'),
+    mkEl('rack',  338, 80,  44, 225,'colo'),
+    mkEl('rack',  386, 80,  44, 225,'colo'),
+    mkEl('wall',  554, 30,   8, 315,''),
+    mkEl('crac',   40,318,  90,  20,'AC3'),
+    mkEl('crac',  172,318,  90,  20,'AC4'),
+    mkEl('crac',  394,318,  90,  20,'AC6'),
+    mkEl('label',  40,348,  80,  18,'unistrut reqd'),
+    mkEl('label', 172,348,  80,  18,'stepped hood'),
+    mkEl('room',   20,390, 570, 315,'Gateway / equipment area'),
+    mkEl('rack',   40,440,  44, 200,'G8'),
+    mkEl('rack',   88,440,  44, 200,'G7'),
+    mkEl('hot',   136,440,   6, 200,''),
+    mkEl('rack',  146,440,  36, 120,'BNO'),
+    mkEl('rack',  194,440,  44, 120,'G6'),
+    mkEl('cold',  242,440,  40, 160,'cold aisle'),
+    mkEl('rack',  286,480,  44, 120,'G5'),
+    mkEl('hot',   334,480,  10, 120,'Hot aisle'),
+    mkEl('curtain',334,520, 10, 120,''),
+    mkEl('rack',  348,520,  44, 120,'G4'),
+    mkEl('crac',   40,716,  90,  20,'AC1'),
+    mkEl('crac',  166,716, 110,  20,'AC2 (same)'),
+    mkEl('label',  40,745,  80,  18,'conduit @25¾" AFF'),
+  ];
+  nextId=300;
+}
+initFloorPlan();
+
+function hitTest(mx,my){
+  for(let i=elements.length-1;i>=0;i--){
+    const e=elements[i];
+    if(e.type==='room')continue;
+    if(mx>=e.x&&mx<=e.x+e.w&&my>=e.y&&my<=e.y+e.h)return e;
+  }
+  for(let i=elements.length-1;i>=0;i--){
+    const e=elements[i];
+    if(e.type==='room'&&mx>=e.x&&mx<=e.x+e.w&&my>=e.y&&my<=e.y+e.h)return e;
+  }
+  return null;
+}
+
+function getResizeHandle(e,mx,my){
+  const sz=10;
+  const handles=[{name:'br',x:e.x+e.w,y:e.y+e.h},{name:'r',x:e.x+e.w,y:e.y+e.h/2},{name:'b',x:e.x+e.w/2,y:e.y+e.h}];
+  for(const h of handles){if(Math.abs(mx-h.x)<sz&&Math.abs(my-h.y)<sz)return h.name;}
+  return null;
+}
+
+function drawHatch(x,y,w,h){
+  ctx.save();ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();
+  ctx.strokeStyle='rgba(136,135,128,0.32)';ctx.lineWidth=0.7;
+  for(let i=-h;i<w+h;i+=8){ctx.beginPath();ctx.moveTo(x+i,y);ctx.lineTo(x+i+h,y+h);ctx.stroke();}
+  ctx.restore();
+}
+
+function setDash(dash){
+  if(dash==='dashed')ctx.setLineDash([5,3]);
+  else if(dash==='dotted')ctx.setLineDash([2,3]);
+  else ctx.setLineDash([]);
+}
+
+function drawLabel(e,cx,cy){
+  if(!e.label)return;
+  const rot=(e.rotation||0)*Math.PI/180;
+  const fs=e.fontSize||12;
+  const fw=e.bold?'bold ':'';
+  ctx.font=`${fw}${fs}px Arial`;
+  ctx.fillStyle=e.textColor||'#2C2C2A';
+  const align=e.align||'center';
+  const vpos=e.vpos||'middle';
+  ctx.textAlign=align;
+  ctx.textBaseline=vpos==='top'?'top':vpos==='bottom'?'bottom':'middle';
+  ctx.save();
+  ctx.translate(cx,cy);
+  ctx.rotate(rot);
+  // multiline split
+  const lines=e.label.split('\n');
+  const lineH=fs+3;
+  const totalH=lines.length*lineH;
+  lines.forEach((line,i)=>{
+    const offsetY=lines.length>1?(i-(lines.length-1)/2)*lineH:0;
+    ctx.fillText(line,0,offsetY);
+  });
+  ctx.restore();
+  ctx.textBaseline='alphabetic';ctx.textAlign='left';
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(0,0,0,0.04)';ctx.lineWidth=0.5;
+  for(let x=0;x<W;x+=GRID){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=GRID){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  const rooms=elements.filter(e=>e.type==='room');
+  const others=elements.filter(e=>e.type!=='room');
+
+  for(const e of [...rooms,...others]){
+    const sel=e.id===selectedId;
+    ctx.save();
+
+    if(e.type==='label'){
+      if(sel){
+        const fs=e.fontSize||12;
+        ctx.font=`${e.bold?'bold ':' '}${fs}px Arial`;
+        const tw=ctx.measureText(e.label||'').width+16;
+        ctx.strokeStyle='#378ADD';ctx.lineWidth=1;ctx.setLineDash([3,2]);
+        ctx.strokeRect(e.x-4,e.y-2,Math.max(tw,40),fs+8);ctx.setLineDash([]);
+      }
+      const cx=e.x+(e.w||60)/2, cy=e.y+(e.fontSize||12)/2+2;
+      drawLabel(e,e.x,e.y+(e.fontSize||12));
+
+    } else if(e.type==='curtain'){
+      ctx.fillStyle=e.fill;ctx.fillRect(e.x,e.y,e.w,e.h);
+      drawHatch(e.x,e.y,e.w,e.h);
+      ctx.strokeStyle=sel?'#378ADD':e.stroke;ctx.lineWidth=sel?1.5:0.5;
+      ctx.strokeRect(e.x,e.y,e.w,e.h);
+
+    } else if(e.type==='wall'){
+      ctx.fillStyle=sel?'#5F5E5A':e.fill;
+      ctx.fillRect(e.x,e.y,e.w,e.h);
+      if(sel){ctx.strokeStyle='#378ADD';ctx.lineWidth=1.5;ctx.strokeRect(e.x,e.y,e.w,e.h);}
+
+    } else if(e.type==='room'){
+      ctx.fillStyle=e.fill;
+      ctx.strokeStyle=sel?'#378ADD':e.stroke;
+      ctx.lineWidth=sel?2:e.lineWidth||1.2;
+      setDash(e.dash||'solid');
+      ctx.beginPath();ctx.roundRect(e.x,e.y,e.w,e.h,6);ctx.fill();ctx.stroke();ctx.setLineDash([]);
+      // room title always top-left
+      ctx.fillStyle=e.textColor||'#2C2C2A';
+      ctx.font=`${e.bold?'bold ':' '}${e.fontSize||13}px Arial`;
+      ctx.textAlign='left';ctx.textBaseline='top';
+      ctx.fillText(e.label||'',e.x+10,e.y+6);
+      ctx.textBaseline='alphabetic';
+
+    } else {
+      ctx.fillStyle=e.fill;
+      ctx.strokeStyle=sel?'#378ADD':e.stroke;
+      ctx.lineWidth=sel?1.5:e.lineWidth||0.8;
+      setDash(e.dash||'solid');
+      ctx.beginPath();ctx.roundRect(e.x,e.y,e.w,e.h,4);ctx.fill();ctx.stroke();ctx.setLineDash([]);
+      if(e.label&&e.w>16){
+        const vpos=e.vpos||'middle';
+        const cy=vpos==='top'?e.y+10:vpos==='bottom'?e.y+e.h-8:e.y+e.h/2;
+        const cx=e.x+e.w/2;
+        drawLabel(e,cx,cy);
+      }
+    }
+
+    if(sel&&e.type!=='label'){
+      ctx.fillStyle='#378ADD';
+      [[e.x+e.w-4,e.y+e.h-4],[e.x+e.w-4,e.y+e.h/2-4],[e.x+e.w/2-4,e.y+e.h-4]].forEach(([rx,ry])=>{
+        ctx.fillRect(rx,ry,9,9);
+      });
+    }
+    ctx.restore();
+  }
+
+  if(drawingNew){
+    ctx.fillStyle=DEFAULTS[drawingNew.type]?.fill||'#eee';
+    ctx.strokeStyle=DEFAULTS[drawingNew.type]?.stroke||'#aaa';
+    ctx.lineWidth=1;ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.roundRect(drawingNew.x,drawingNew.y,Math.max(drawingNew.w,4),Math.max(drawingNew.h,4),4);
+    ctx.fill();ctx.stroke();ctx.setLineDash([]);
+  }
+
+  // legend
+  const lx=16,ly=H-50;
+  ctx.fillStyle='rgba(255,255,255,0.9)';ctx.strokeStyle='#ddd';ctx.lineWidth=0.5;
+  ctx.beginPath();ctx.roundRect(lx-4,ly-4,690,38,4);ctx.fill();ctx.stroke();
+  const items=[
+    {label:'Rack row',fill:'#E1F5EE',stroke:'#0F6E56'},
+    {label:'Cold aisle',fill:'#E6F1FB',stroke:'#185FA5'},
+    {label:'Hot aisle',fill:'#FAEEDA',stroke:'#D85A30'},
+    {label:'CRAC unit',fill:'#FAEEDA',stroke:'#854F0B'},
+    {label:'Curtain',fill:'#f0f0ee',stroke:'#888780',hatch:true},
+    {label:'Wall',fill:'#888780',stroke:'#444441'},
+  ];
+  let ox=lx;
+  items.forEach(it=>{
+    ctx.fillStyle=it.fill;ctx.strokeStyle=it.stroke;ctx.lineWidth=0.5;
+    ctx.fillRect(ox,ly+2,14,14);
+    if(it.hatch)drawHatch(ox,ly+2,14,14);
+    ctx.strokeRect(ox,ly+2,14,14);
+    ctx.fillStyle='#444';ctx.font='11px Arial';ctx.textBaseline='middle';
+    ctx.fillText(it.label,ox+18,ly+9);
+    ox+=ctx.measureText(it.label).width+36;
+    ctx.textBaseline='alphabetic';
+  });
+  ctx.fillStyle='rgba(100,100,100,0.45)';ctx.font='10px Arial';
+  ctx.textAlign='right';
+  ctx.fillText('CT – Hartford Locust  ·  Containment floor plan  ·  Enabled Energy  ·  Not to scale',W-14,H-8);
+  ctx.textAlign='left';
+}
+
+// ── Properties panel ─────────────────────────────────────────
+function refreshProps(){
+  const el=getById(selectedId);
+  if(!el){propsPanel.style.display='none';propsEmpty.style.display='block';return;}
+  propsEmpty.style.display='none';propsPanel.style.display='block';
+  document.getElementById('p-label').value=el.label||'';
+  document.getElementById('p-fontsize').value=el.fontSize||12;
+  document.getElementById('p-bold').checked=!!el.bold;
+  document.getElementById('p-rot').value=el.rotation||0;
+  document.getElementById('p-x').value=el.x;
+  document.getElementById('p-y').value=el.y;
+  document.getElementById('p-w').value=el.w;
+  document.getElementById('p-h').value=el.h;
+  document.getElementById('p-linewidth').value=el.lineWidth||0.8;
+  document.getElementById('p-dash').value=el.dash||'solid';
+  // colors — convert rgba to hex approx
+  function toHex(c){
+    if(!c||c==='transparent')return '#ffffff';
+    if(c.startsWith('#'))return c.slice(0,7);
+    const tmp=document.createElement('canvas');tmp.width=tmp.height=1;
+    const cx2=tmp.getContext('2d');cx2.fillStyle=c;cx2.fillRect(0,0,1,1);
+    const d=cx2.getImageData(0,0,1,1).data;
+    return '#'+[d[0],d[1],d[2]].map(v=>v.toString(16).padStart(2,'0')).join('');
+  }
+  document.getElementById('p-fill').value=toHex(el.fill);
+  document.getElementById('p-stroke').value=toHex(el.stroke);
+  document.getElementById('p-textcolor').value=toHex(el.textColor||'#2C2C2A');
+  // orient buttons
+  document.querySelectorAll('.orient-btn[data-rot]').forEach(b=>{
+    b.classList.toggle('active',Number(b.dataset.rot)===(el.rotation||0));
+  });
+  document.querySelectorAll('.orient-btn[data-align]').forEach(b=>{
+    b.classList.toggle('active',b.dataset.align===(el.align||'center'));
+  });
+  document.querySelectorAll('.orient-btn[data-vpos]').forEach(b=>{
+    b.classList.toggle('active',b.dataset.vpos===(el.vpos||'middle'));
+  });
+}
+
+function applyProp(key,val){
+  const el=getById(selectedId);
+  if(!el)return;
+  saveHistory();
+  el[key]=val;
+  draw();
+}
+
+document.getElementById('p-label').addEventListener('input',e=>{applyProp('label',e.target.value);});
+document.getElementById('p-fontsize').addEventListener('change',e=>{applyProp('fontSize',Number(e.target.value));});
+document.getElementById('p-bold').addEventListener('change',e=>{applyProp('bold',e.target.checked);});
+document.getElementById('p-rot').addEventListener('change',e=>{
+  applyProp('rotation',Number(e.target.value));
+  document.querySelectorAll('.orient-btn[data-rot]').forEach(b=>b.classList.remove('active'));
+});
+document.getElementById('p-x').addEventListener('change',e=>{applyProp('x',Number(e.target.value));});
+document.getElementById('p-y').addEventListener('change',e=>{applyProp('y',Number(e.target.value));});
+document.getElementById('p-w').addEventListener('change',e=>{applyProp('w',Math.max(GRID,Number(e.target.value)));});
+document.getElementById('p-h').addEventListener('change',e=>{applyProp('h',Math.max(GRID,Number(e.target.value)));});
+document.getElementById('p-fill').addEventListener('input',e=>{applyProp('fill',e.target.value);});
+document.getElementById('p-stroke').addEventListener('input',e=>{applyProp('stroke',e.target.value);});
+document.getElementById('p-textcolor').addEventListener('input',e=>{applyProp('textColor',e.target.value);});
+document.getElementById('p-linewidth').addEventListener('change',e=>{applyProp('lineWidth',Number(e.target.value));});
+document.getElementById('p-dash').addEventListener('change',e=>{applyProp('dash',e.target.value);});
+
+document.querySelectorAll('.orient-btn[data-rot]').forEach(b=>{
+  b.addEventListener('click',()=>{
+    const rot=Number(b.dataset.rot);
+    applyProp('rotation',rot);
+    document.getElementById('p-rot').value=rot;
+    document.querySelectorAll('.orient-btn[data-rot]').forEach(x=>x.classList.toggle('active',x===b));
+  });
+});
+document.querySelectorAll('.orient-btn[data-align]').forEach(b=>{
+  b.addEventListener('click',()=>{
+    applyProp('align',b.dataset.align);
+    document.querySelectorAll('.orient-btn[data-align]').forEach(x=>x.classList.toggle('active',x===b));
+  });
+});
+document.querySelectorAll('.orient-btn[data-vpos]').forEach(b=>{
+  b.addEventListener('click',()=>{
+    applyProp('vpos',b.dataset.vpos);
+    document.querySelectorAll('.orient-btn[data-vpos]').forEach(x=>x.classList.toggle('active',x===b));
+  });
+});
+
+// ── Canvas interaction ────────────────────────────────────────
+function setMode(m){
+  mode=m;
+  ['select','rack','crac','cold','hot','curtain','wall','room','label'].forEach(t=>{
+    const b=document.getElementById('btn-'+t);
+    if(b)b.classList.toggle('active',t===m);
+  });
+  canvas.style.cursor=m==='select'?'default':'crosshair';
+  if(m!=='select'){selectedId=null;refreshProps();draw();}
+}
+
+function getCanvasPos(e){
+  const r=canvas.getBoundingClientRect();
+  return{x:(e.clientX-r.left)*(canvas.width/r.width),y:(e.clientY-r.top)*(canvas.height/r.height)};
+}
+
+canvas.addEventListener('mousedown',e=>{
+  if(e.button!==0)return;
+  const{x,y}=getCanvasPos(e);
+  if(mode==='select'){
+    const hit=hitTest(x,y);
+    if(hit){
+      if(selectedId===hit.id){
+        const h=getResizeHandle(hit,x,y);
+        if(h){resizing=true;resizeHandle=h;saveHistory();return;}
+      }
+      selectedId=hit.id;dragging=true;dragOffX=x-hit.x;dragOffY=y-hit.y;
+      saveHistory();refreshProps();
+      status.textContent=`Selected: "${hit.label||hit.type}" — drag to move · handles to resize · panel on right to style`;
+    } else {selectedId=null;refreshProps();}
+    draw();return;
+  }
+  if(mode==='label'){
+    saveHistory();
+    const lbl=mkEl('label',snap(x),snap(y),80,18,'Label');
+    elements.push(lbl);selectedId=lbl.id;
+    openLabelEdit(lbl,x,y);refreshProps();draw();return;
+  }
+  drawStart={x:snap(x),y:snap(y)};
+  drawingNew={type:mode,x:drawStart.x,y:drawStart.y,w:4,h:4};
+});
+
+canvas.addEventListener('mousemove',e=>{
+  const{x,y}=getCanvasPos(e);
+  if(dragging&&selectedId){
+    const el=getById(selectedId);
+    if(el){el.x=snap(x-dragOffX);el.y=snap(y-dragOffY);}
+    draw();
+    document.getElementById('p-x').value=el.x;
+    document.getElementById('p-y').value=el.y;
+    return;
+  }
+  if(resizing&&selectedId){
+    const el=getById(selectedId);
+    if(el){
+      if(resizeHandle==='br'||resizeHandle==='r')el.w=Math.max(GRID,snap(x-el.x));
+      if(resizeHandle==='br'||resizeHandle==='b')el.h=Math.max(GRID,snap(y-el.y));
+    }
+    draw();
+    document.getElementById('p-w').value=el.w;
+    document.getElementById('p-h').value=el.h;
+    return;
+  }
+  if(drawingNew&&drawStart){
+    drawingNew.x=Math.min(snap(x),drawStart.x);
+    drawingNew.y=Math.min(snap(y),drawStart.y);
+    drawingNew.w=Math.abs(snap(x)-drawStart.x)||GRID;
+    drawingNew.h=Math.abs(snap(y)-drawStart.y)||GRID;
+    draw();return;
+  }
+  if(mode==='select'&&selectedId){
+    const el=getById(selectedId);
+    if(el)canvas.style.cursor=getResizeHandle(el,x,y)?'se-resize':'move';
+  }
+});
+
+canvas.addEventListener('mouseup',e=>{
+  if(dragging){dragging=false;canvas.style.cursor='default';}
+  if(resizing){resizing=false;resizeHandle=null;canvas.style.cursor='default';}
+  if(drawingNew&&drawStart){
+    const dn=drawingNew;
+    if(dn.w>=GRID&&dn.h>=GRID){
+      saveHistory();
+      const defaults={rack:'Rack',crac:'CRAC',cold:'Cold aisle',hot:'Hot aisle',curtain:'',wall:'',room:'Room',label:'Label'};
+      const newEl=mkEl(dn.type,dn.x,dn.y,dn.w,dn.h,defaults[dn.type]||'');
+      elements.push(newEl);selectedId=newEl.id;
+      if(dn.type!=='curtain'&&dn.type!=='wall') openLabelEdit(newEl,dn.x+dn.w/2,dn.y+dn.h/2);
+      refreshProps();
+    }
+    drawingNew=null;drawStart=null;setMode('select');draw();
+  }
+});
+
+canvas.addEventListener('dblclick',e=>{
+  const{x,y}=getCanvasPos(e);
+  const hit=hitTest(x,y);
+  if(hit)openLabelEdit(hit,x,y);
+});
+
+function openLabelEdit(el,mx,my){
+  labelTarget=el;
+  const r=canvas.getBoundingClientRect();
+  const wr=document.getElementById('canvas-wrap').getBoundingClientRect();
+  const scale=r.width/canvas.width;
+  labelInput.style.display='block';
+  labelInput.style.left=(r.left-wr.left+Math.min(mx*scale,r.width-150))+'px';
+  labelInput.style.top=(r.top-wr.top+Math.min(my*scale,r.height-50))+'px';
+  labelInput.style.width='150px';
+  labelInput.value=el.label||'';
+  labelInput.focus();labelInput.select();
+  status.textContent='Type label · Enter to confirm · Esc to cancel';
+}
+labelInput.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){e.preventDefault();commitLabel();}
+  if(e.key==='Escape'){labelInput.style.display='none';labelTarget=null;}
+});
+labelInput.addEventListener('blur',()=>commitLabel());
+function commitLabel(){
+  if(labelTarget){labelTarget.label=labelInput.value;document.getElementById('p-label').value=labelInput.value;labelTarget=null;}
+  labelInput.style.display='none';draw();
+}
+
+// ── Toolbar buttons ──────────────────────────────────────────
+['select','rack','crac','cold','hot','curtain','wall','room','label'].forEach(t=>{
+  document.getElementById('btn-'+t).addEventListener('click',()=>setMode(t));
+});
+
+document.getElementById('btn-delete').addEventListener('click',()=>{
+  if(selectedId){saveHistory();elements=elements.filter(e=>e.id!==selectedId);selectedId=null;refreshProps();draw();status.textContent='Deleted.';}
+  else status.textContent='Select an element first.';
+});
+document.getElementById('btn-rename').addEventListener('click',()=>{
+  if(selectedId){const el=getById(selectedId);if(el)openLabelEdit(el,el.x+el.w/2,el.y+el.h/2);}
+  else status.textContent='Select an element first.';
+});
+document.getElementById('btn-undo').addEventListener('click',()=>{
+  if(history.length){elements=history.pop();selectedId=null;refreshProps();draw();status.textContent='Undone.';}
+  else status.textContent='Nothing to undo.';
+});
+document.getElementById('btn-reset').addEventListener('click',()=>{
+  if(confirm('Reset to default floor plan? All edits will be lost.')){
+    saveHistory();initFloorPlan();selectedId=null;refreshProps();draw();status.textContent='Reset.';
+  }
+});
+document.getElementById('btn-export').addEventListener('click',()=>{
+  const prev=selectedId;selectedId=null;draw();
+  const link=document.createElement('a');
+  link.download='CT_Hartford_Locust_FloorPlan.png';
+  link.href=canvas.toDataURL('image/png');link.click();
+  selectedId=prev;draw();status.textContent='Exported PNG — check Downloads.';
+});
+document.getElementById('btn-copy').addEventListener('click',async()=>{
+  const prev=selectedId;selectedId=null;draw();
+  try{
+    canvas.toBlob(async blob=>{
+      await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+      status.textContent='Copied to clipboard — paste anywhere with Ctrl+V.';
+    });
+  }catch{status.textContent='Copy blocked by browser — use Export PNG instead.';}
+  selectedId=prev;draw();
+});
+
+document.addEventListener('keydown',e=>{
+  if(labelInput.style.display!=='none')return;
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();document.getElementById('btn-undo').click();}
+  if((e.key==='Delete'||e.key==='Backspace')&&selectedId&&document.activeElement.tagName!=='INPUT'){
+    e.preventDefault();document.getElementById('btn-delete').click();
+  }
+  if(e.key==='Escape'){selectedId=null;setMode('select');refreshProps();draw();}
+});
+
+// ── Save / Load ───────────────────────────────────────────────
+const SAVE_KEY='floorplan_autosave';
+
+function projectToJSON(){
+  return JSON.stringify({version:1,savedAt:new Date().toISOString(),elements,nextId},null,2);
+}
+
+function loadFromJSON(json){
+  try{
+    const data=JSON.parse(json);
+    if(!data.elements||!Array.isArray(data.elements))throw new Error('Invalid file');
+    saveHistory();
+    elements=data.elements;
+    nextId=data.nextId||(Math.max(...data.elements.map(e=>e.id))+1);
+    selectedId=null;refreshProps();draw();
+    return true;
+  }catch(e){alert('Could not load file: '+e.message);return false;}
+}
+
+// Save as .json download
+document.getElementById('btn-save').addEventListener('click',()=>{
+  const json=projectToJSON();
+  try{localStorage.setItem(SAVE_KEY,json);}catch(e){}
+  const blob=new Blob([json],{type:'application/json'});
+  const link=document.createElement('a');
+  const name=(prompt('Save project as:','my_floorplan')||'my_floorplan').replace(/\.json$/,'')+'.json';
+  link.download=name;
+  link.href=URL.createObjectURL(blob);
+  link.click();
+  URL.revokeObjectURL(link.href);
+  status.textContent=`Saved as "${name}" — share or keep this file to reload your work.`;
+});
+
+// Load from .json file
+document.getElementById('btn-load').addEventListener('click',()=>{
+  if(elements.length>0&&!confirm('Loading replaces your current layout. Continue?'))return;
+  document.getElementById('file-load').click();
+});
+document.getElementById('file-load').addEventListener('change',e=>{
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    if(loadFromJSON(ev.target.result))
+      status.textContent=`Loaded "${file.name}" — ${elements.length} elements restored.`;
+  };
+  reader.readAsText(file);
+  e.target.value='';
+});
+
+// Ctrl+S shortcut
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();document.getElementById('btn-save').click();}
+});
+
+// Autosave to localStorage on every draw
+const _origDraw=draw;
+function draw(){_origDraw();try{localStorage.setItem(SAVE_KEY,projectToJSON());}catch(e){}}
+
+// Restore autosaved session on startup
+(function(){
+  try{
+    const saved=localStorage.getItem(SAVE_KEY);
+    if(!saved)return;
+    const data=JSON.parse(saved);
+    const age=data.savedAt?Math.round((Date.now()-new Date(data.savedAt))/60000):null;
+    const msg=age!==null?`${age} min${age!==1?'s':''} ago`:'previously';
+    if(confirm(`Autosaved session found (${msg}). Restore it?`)){
+      elements=data.elements;nextId=data.nextId||300;
+      status.textContent=`Session restored — ${elements.length} elements.`;
+    }
+  }catch(e){}
+})();
+
+draw();
+</script>
+</body>
+</html>
