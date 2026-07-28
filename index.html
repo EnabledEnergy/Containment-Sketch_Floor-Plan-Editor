@@ -167,7 +167,7 @@ function mkEl(type,x,y,w,h,label){
 
 function initFloorPlan(){
   elements=[
-    mkEl('room',   20, 30, 570,315,'Colo room'),
+    mkEl('room',   20, 46, 570,315,'Colo room'),
     mkEl('rack',   40, 80,  35, 225,'L1'),
     mkEl('hot',    57, 80,  22, 225,'Hot aisle'),
     mkEl('curtain',83, 80,  10, 225,''),
@@ -185,7 +185,7 @@ function initFloorPlan(){
     mkEl('crac',  394,318,  90,  20,'AC6'),
     mkEl('label',  40,348,  80,  18,'unistrut reqd'),
     mkEl('label', 172,348,  80,  18,'stepped hood'),
-    mkEl('room',   20,390, 570, 315,'Gateway / equipment area'),
+    mkEl('room',   20,406, 570, 315,'Gateway / equipment area'),
     mkEl('rack',   40,440,  44, 200,'G8'),
     mkEl('rack',   88,440,  44, 200,'G7'),
     mkEl('hot',   136,440,   6, 200,''),
@@ -335,41 +335,63 @@ function draw(){
     ctx.restore();
   }
 
-  if(drawingNew){
-    ctx.fillStyle=DEFAULTS[drawingNew.type]?.fill||'#eee';
-    ctx.strokeStyle=DEFAULTS[drawingNew.type]?.stroke||'#aaa';
-    ctx.lineWidth=1;ctx.setLineDash([4,3]);
-    ctx.beginPath();ctx.roundRect(drawingNew.x,drawingNew.y,Math.max(drawingNew.w,4),Math.max(drawingNew.h,4),4);
-    ctx.fill();ctx.stroke();ctx.setLineDash([]);
-  }
-
-  // legend
-  const lx=16,ly=H-50;
-  ctx.fillStyle='rgba(255,255,255,0.9)';ctx.strokeStyle='#ddd';ctx.lineWidth=0.5;
-  ctx.beginPath();ctx.roundRect(lx-4,ly-4,690,38,4);ctx.fill();ctx.stroke();
-  const items=[
-    {label:'Rack row',fill:'#E1F5EE',stroke:'#0F6E56'},
-    {label:'Cold aisle',fill:'#E6F1FB',stroke:'#185FA5'},
-    {label:'Hot aisle',fill:'#FAEEDA',stroke:'#D85A30'},
-    {label:'CRAC unit',fill:'#FAEEDA',stroke:'#854F0B'},
-    {label:'Curtain',fill:'#f0f0ee',stroke:'#888780',hatch:true},
-    {label:'Wall',fill:'#888780',stroke:'#444441'},
+  // ── Legend (top of canvas, always visible) ──
+  const legendItems=[
+    {label:'Rack row',   fill:'#E1F5EE',stroke:'#0F6E56'},
+    {label:'Cold aisle', fill:'#E6F1FB',stroke:'#185FA5'},
+    {label:'Hot aisle',  fill:'#FAEEDA',stroke:'#D85A30'},
+    {label:'CRAC unit',  fill:'#FAEEDA',stroke:'#854F0B'},
+    {label:'Curtain',    fill:'#f0f0ee',stroke:'#888780',hatch:true},
+    {label:'Wall',       fill:'#888780',stroke:'#444441'},
   ];
-  let ox=lx;
-  items.forEach(it=>{
-    ctx.fillStyle=it.fill;ctx.strokeStyle=it.stroke;ctx.lineWidth=0.5;
-    ctx.fillRect(ox,ly+2,14,14);
-    if(it.hatch)drawHatch(ox,ly+2,14,14);
-    ctx.strokeRect(ox,ly+2,14,14);
-    ctx.fillStyle='#444';ctx.font='11px Arial';ctx.textBaseline='middle';
-    ctx.fillText(it.label,ox+18,ly+9);
-    ox+=ctx.measureText(it.label).width+36;
+  ctx.font='11px Arial';
+  const lgX=16, lgY=4, lgH=28;
+  const itemW = legendItems.reduce((sum,it)=>sum+18+ctx.measureText(it.label).width+16, 0);
+  const lgW = Math.min(itemW+16, W-32);
+  ctx.fillStyle='rgba(255,255,255,0.96)';
+  ctx.strokeStyle='#cccccc'; ctx.lineWidth=0.8;
+  ctx.beginPath(); ctx.roundRect(lgX-2, lgY-2, lgW+4, lgH+4, 6); ctx.fill(); ctx.stroke();
+  let lgox = lgX + (lgW - itemW) / 2;
+  legendItems.forEach(it=>{
+    ctx.fillStyle=it.fill; ctx.strokeStyle=it.stroke; ctx.lineWidth=0.8;
+    ctx.fillRect(lgox, lgY+6, 14, 14);
+    if(it.hatch) drawHatch(lgox, lgY+6, 14, 14);
+    ctx.strokeRect(lgox, lgY+6, 14, 14);
+    ctx.fillStyle='#222'; ctx.font='11px Arial'; ctx.textBaseline='middle';
+    ctx.fillText(it.label, lgox+18, lgY+14);
+    lgox += 18 + ctx.measureText(it.label).width + 16;
     ctx.textBaseline='alphabetic';
   });
-  ctx.fillStyle='rgba(100,100,100,0.45)';ctx.font='10px Arial';
-  ctx.textAlign='right';
-  ctx.fillText('CT – Hartford Locust  ·  Containment floor plan  ·  Enabled Energy  ·  Not to scale',W-14,H-8);
+  ctx.fillStyle='rgba(31,78,121,0.08)';
+  ctx.fillRect(0, H-22, W, 22);
+  ctx.fillStyle='rgba(31,78,121,0.75)'; ctx.font='bold 10px Arial'; ctx.textAlign='center';
+  ctx.fillText('CT – Hartford Locust  ·  Containment Floor Plan  ·  Enabled Energy  ·  Not to scale', W/2, H-8);
   ctx.textAlign='left';
+
+  if(drawingNew){
+    const dt=DEFAULTS[drawingNew.type]||DEFAULTS.rack;
+    const dw=Math.max(drawingNew.w,10), dh=Math.max(drawingNew.h,10);
+    ctx.save();
+    ctx.globalAlpha=0.82;
+    ctx.fillStyle=dt.fill;
+    ctx.strokeStyle=dt.stroke;
+    ctx.lineWidth=1.5;
+    ctx.setLineDash([5,3]);
+    ctx.beginPath();ctx.roundRect(drawingNew.x,drawingNew.y,dw,dh,4);
+    ctx.fill();ctx.stroke();ctx.setLineDash([]);
+    // type label in center while drawing
+    if(dw>30&&dh>16){
+      ctx.fillStyle=dt.textColor||'#333';
+      ctx.font='bold 11px Arial';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(drawingNew.type.toUpperCase(),drawingNew.x+dw/2,drawingNew.y+dh/2);
+      ctx.textAlign='left';ctx.textBaseline='alphabetic';
+    }
+    // size hint
+    ctx.fillStyle='rgba(0,0,0,0.5)';ctx.font='10px Arial';
+    ctx.fillText(Math.round(dw)+'x'+Math.round(dh),drawingNew.x+2,drawingNew.y+dh+12);
+    ctx.restore();
+  }
+
 }
 
 // ── Properties panel ─────────────────────────────────────────
@@ -546,7 +568,7 @@ canvas.addEventListener('mouseup',e=>{
       if(dn.type!=='curtain'&&dn.type!=='wall') openLabelEdit(newEl,dn.x+dn.w/2,dn.y+dn.h/2);
       refreshProps();
     }
-    drawingNew=null;drawStart=null;setMode('select');draw();
+    drawingNew=null;drawStart=null;setMode('select');draw();autosave();
   }
 });
 
@@ -576,7 +598,7 @@ labelInput.addEventListener('keydown',e=>{
 labelInput.addEventListener('blur',()=>commitLabel());
 function commitLabel(){
   if(labelTarget){labelTarget.label=labelInput.value;document.getElementById('p-label').value=labelInput.value;labelTarget=null;}
-  labelInput.style.display='none';draw();
+  labelInput.style.display='none';draw();autosave();
 }
 
 // ── Toolbar buttons ──────────────────────────────────────────
@@ -682,9 +704,8 @@ document.addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();document.getElementById('btn-save').click();}
 });
 
-// Autosave to localStorage on every draw
-const _origDraw=draw;
-function draw(){_origDraw();try{localStorage.setItem(SAVE_KEY,projectToJSON());}catch(e){}}
+// Autosave to localStorage — called explicitly after state changes, NOT inside draw()
+function autosave(){try{localStorage.setItem(SAVE_KEY,projectToJSON());}catch(e){}}
 
 // Restore autosaved session on startup
 (function(){
